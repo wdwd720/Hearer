@@ -123,6 +123,72 @@ export function compressMedsCue(label: string): CompressedCue {
   };
 }
 
+// Live-audio cues. Same compressor style — short, action-first, no transcript dumps.
+
+export function compressLiveTimerUnknown(): CompressedCue {
+  return {
+    text: joinLines("Timer beeping.", "Check nearby."),
+    actionType: "physical",
+    reason: "Timer-like audio detected — no kitchen context, soft cue.",
+  };
+}
+
+export function compressLiveAlarm(home: boolean): CompressedCue {
+  return {
+    text: joinLines("Alarm sounding.", home ? "Check at home." : "Look around."),
+    actionType: "physical",
+    reason: "Alarm-like sustained tone detected.",
+  };
+}
+
+export function compressLiveLoudAlertUnknown(): CompressedCue {
+  return {
+    text: joinLines("Loud alert nearby.", "Look around."),
+    actionType: "physical",
+    reason: "Siren/horn-like audio without street context.",
+  };
+}
+
+export function compressLiveDoorbellUnknown(): CompressedCue {
+  return {
+    text: joinLines("Doorbell-like sound.", "Check door."),
+    actionType: "awareness",
+    reason: "Chime-like burst detected.",
+  };
+}
+
+export function compressLiveKnock(home: boolean): CompressedCue {
+  return {
+    text: joinLines("Knock detected.", home ? "Check door." : "Check nearby."),
+    actionType: home ? "physical" : "awareness",
+    reason: "Knock-like transient detected.",
+  };
+}
+
+export function compressLiveSpeechNearby(): CompressedCue {
+  return {
+    text: joinLines("Speech nearby.", "Stay aware."),
+    actionType: "awareness",
+    reason: "Speech-like audio detected — no transcript inferred.",
+  };
+}
+
+export function compressLiveApplause(): CompressedCue {
+  return {
+    text: joinLines("Applause around you.", "Heads up."),
+    actionType: "awareness",
+    reason: "Repeated broadband transients detected.",
+  };
+}
+
+export function compressLiveLaughter(): CompressedCue {
+  return {
+    text: joinLines("Laughter nearby.", "Heads up."),
+    actionType: "awareness",
+    reason: "Bursty speech-like audio detected.",
+  };
+}
+
 export function idleCue(): CompressedCue {
   return {
     text: "No cue needed",

@@ -150,6 +150,60 @@ export function routeActions(
         physicalDescription: "Take the blue pill. HUD shows the cue.",
       };
     }
+
+    // Live-audio scenarios — synthesised on the fly in liveAudioDecision.
+    case "live_timer":
+    case "live_alarm": {
+      digital.push({
+        id: nextId("act"),
+        type: "simulate_vibration",
+        label: "Phone vibration simulated for live audio alert",
+        status: "simulated",
+        payload: { pattern: "alert" },
+      });
+      return {
+        digitalActions: digital,
+        physicalDescription: "Live audio alert. HUD shows the cue.",
+      };
+    }
+    case "live_loud_alert": {
+      digital.push({
+        id: nextId("act"),
+        type: "simulate_vibration",
+        label: "Urgent phone vibration simulated (loud alert)",
+        status: "simulated",
+        payload: { pattern: "urgent" },
+      });
+      return {
+        digitalActions: digital,
+        physicalDescription: "Loud alert detected. HUD shows the cue.",
+      };
+    }
+    case "live_doorbell":
+    case "live_knock":
+    case "live_knock_home": {
+      digital.push({
+        id: nextId("act"),
+        type: "simulate_vibration",
+        label: "Soft phone vibration simulated",
+        status: "simulated",
+        payload: { pattern: "soft" },
+      });
+      return {
+        digitalActions: digital,
+        physicalDescription: "Door-side audio detected. HUD shows the cue.",
+      };
+    }
+    case "live_speech_nearby":
+    case "live_applause":
+    case "live_laughter": {
+      return {
+        digitalActions: [],
+        awarenessDescription:
+          "Awareness cue only — no transcript inferred from audio.",
+      };
+    }
+
     default: {
       return {
         digitalActions: [],

@@ -1,0 +1,42 @@
+.hr-clf {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--hr-border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.hr-clf-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hr-clf-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--hr-accent);
+  box-shadow: 0 0 8px rgba(110, 230, 200, 0.5);
+}
+
+.hr-clf-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hr-text);
+}
+
+.hr-clf-id {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--hr-text-muted);
+  font-family: "JetBrains Mono", "SF Mono", "Menlo", monospace;
+  margin-left: auto;
+}
+
+.hr-clf-sub {
+  font-size: 11px;
+  color: var(--hr-text-muted);
+}
