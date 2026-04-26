@@ -1,0 +1,83 @@
+.hr-detlog {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.hr-detlog-empty {
+  font-size: 11px;
+  color: var(--hr-text-muted);
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px dashed var(--hr-border);
+}
+
+.hr-detlog-item {
+  border: 1px solid var(--hr-border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hr-detlog-routed {
+  border-color: rgba(110, 230, 200, 0.4);
+  background: rgba(110, 230, 200, 0.04);
+}
+
+.hr-detlog-quiet {
+  opacity: 0.78;
+}
+
+.hr-detlog-row {
+  display: grid;
+  grid-template-columns: 60px 1fr auto auto;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.hr-detlog-time {
+  font-family: "JetBrains Mono", "SF Mono", "Menlo", monospace;
+  font-size: 10px;
+  color: var(--hr-text-muted);
+}
+
+.hr-detlog-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hr-text);
+  text-transform: capitalize;
+}
+
+.hr-detlog-conf {
+  font-size: 11px;
+  color: var(--hr-accent);
+  font-family: "JetBrains Mono", "SF Mono", "Menlo", monospace;
+}
+
+.hr-detlog-src {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hr-text-muted);
+}
+
+.hr-detlog-explain {
+  font-size: 11px;
+  color: var(--hr-text-muted);
+  font-family: "JetBrains Mono", "SF Mono", "Menlo", monospace;
+}
+
+.hr-detlog-route {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--hr-text);
+}

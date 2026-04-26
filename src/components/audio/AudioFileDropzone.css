@@ -1,0 +1,39 @@
+.hr-dz {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--hr-border);
+  background: rgba(255, 255, 255, 0.015);
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.hr-dz-hover {
+  border-color: rgba(110, 230, 200, 0.55);
+  background: rgba(110, 230, 200, 0.05);
+}
+
+.hr-dz-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hr-dz-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.hr-dz-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hr-text);
+}
+
+.hr-dz-sub {
+  font-size: 11px;
+  color: var(--hr-text-muted);
+}

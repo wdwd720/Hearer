@@ -106,6 +106,39 @@ export function scorePriority(
       reasons.push("Evening routine + home → soft reminder");
       priority = "medium";
       break;
+    case "live_timer":
+      reasons.push("Live timer audio without kitchen context");
+      priority = avgConf > 0.7 ? "high" : "medium";
+      break;
+    case "live_alarm":
+      reasons.push("Live alarm-like audio");
+      priority = "high";
+      break;
+    case "live_loud_alert":
+      reasons.push("Live loud alert without street context");
+      priority = "high";
+      break;
+    case "live_doorbell":
+      reasons.push("Live doorbell-like audio without home context");
+      priority = "medium";
+      break;
+    case "live_knock":
+      reasons.push("Live knock-like transient");
+      priority = "medium";
+      break;
+    case "live_knock_home":
+      reasons.push("Live knock at home");
+      priority = "high";
+      break;
+    case "live_speech_nearby":
+      reasons.push("Speech-like audio detected — awareness only");
+      priority = "low";
+      break;
+    case "live_applause":
+    case "live_laughter":
+      reasons.push("Crowd-like audio — awareness only");
+      priority = "low";
+      break;
     default:
       reasons.push("No specific rule, default scenario priority");
   }
