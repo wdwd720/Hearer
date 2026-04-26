@@ -39,7 +39,34 @@ export function compressKitchenTimerCue(): CompressedCue {
   };
 }
 
-export function compressLeavingHomeCue(items: string[]): CompressedCue {
+export interface LeavingHomeMemoryHints {
+  // Saved important items, e.g. ["keys", "laptop", "wallet"].
+  importantItems: string[];
+  // Saved routines that mention "leaving home" / "school" — the action label
+  // (e.g. "bring my laptop") is preferred over generic items list.
+  matchedRoutineActionLabels?: string[];
+}
+
+export function compressLeavingHomeCue(
+  hints: LeavingHomeMemoryHints | string[]
+): CompressedCue {
+  const items = Array.isArray(hints) ? hints : hints.importantItems;
+  const matched = Array.isArray(hints) ? [] : hints.matchedRoutineActionLabels ?? [];
+
+  if (matched.length > 0) {
+    // Use the saved routine action verbatim, but trim it tight for the HUD.
+    const action = matched[0]
+      .replace(/^(bring|grab|pick up|carry)\s+(my\s+)?/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    const line2 = action.length > 22 ? action.slice(0, 21) + "…" : action;
+    return {
+      text: joinLines("Leaving home:", `bring ${line2}.`),
+      actionType: "physical",
+      reason: "Saved routine matched: leaving home → personal cue.",
+    };
+  }
+
   const top = items.slice(0, 2).join(" + ");
   return {
     text: joinLines("Leaving home:", `${top}.`),
@@ -90,11 +117,18 @@ export function compressPromiseCue(person: string, task: string): CompressedCue 
   };
 }
 
-export function compressRoadAlertCue(kind: "horn" | "siren"): CompressedCue {
+export function compressRoadAlertCue(
+  kind: "horn" | "siren",
+  direction?: "front" | "left" | "right" | "behind" | "unknown"
+): CompressedCue {
+  const hasDir = direction && direction !== "unknown";
+  const line2 = hasDir ? `${kind} on ${direction}.` : `${kind} nearby.`;
   return {
-    text: joinLines("Road alert:", `${kind} nearby.`),
+    text: joinLines("Road alert:", line2),
     actionType: "physical",
-    reason: "Vehicle audio while walking on street — safety priority.",
+    reason: hasDir
+      ? `Vehicle audio with known direction (${direction}) — safety priority.`
+      : "Vehicle audio while walking on street — safety priority.",
   };
 }
 
@@ -201,16 +235,20 @@ export interface CandidateInput {
   scenarioId: string;
   signals: Signal[];
   context: ContextState;
+  matchedRoutineActionLabels?: string[];
 }
 
 export function compressCandidateCue(input: CandidateInput): CompressedCue {
-  const { scenarioId, signals, context } = input;
+  const { scenarioId, signals, context, matchedRoutineActionLabels } = input;
 
   switch (scenarioId) {
     case "kitchen_timer":
       return compressKitchenTimerCue();
     case "leaving_home":
-      return compressLeavingHomeCue(context.importantItems);
+      return compressLeavingHomeCue({
+        importantItems: context.importantItems,
+        matchedRoutineActionLabels,
+      });
     case "doorbell": {
       const deliveryExpected =
         signals.some(

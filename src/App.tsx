@@ -8,21 +8,21 @@ import { ActionPanel } from "./components/ActionPanel";
 import { EventLog } from "./components/EventLog";
 import { SignalTimeline } from "./components/SignalTimeline";
 import { AudioAwarenessPanel } from "./components/audio/AudioAwarenessPanel";
+import { G2RuntimePanel } from "./components/glasses/G2RuntimePanel";
+import { MemoryCommandBox } from "./components/memory/MemoryCommandBox";
+import { SystemPipelineCard } from "./components/SystemPipelineCard";
+import { DatasetModelCard } from "./components/DatasetModelCard";
 import { decide } from "./engine/contextEngine";
 import { getScenario, scenarios } from "./engine/scenarios";
-import {
-  loadMemory,
-  recordRecentCue,
-  resetMemory,
-} from "./engine/memoryStore";
 import { AudioController } from "./audio/audioController";
-import type {
-  AudioControllerSnapshot,
-  LiveContextOverride,
-} from "./audio/audioTypes";
-import { SimulatorHudAdapter } from "./glasses/simulatorHudAdapter";
-import { EvenG2AdapterStub } from "./glasses/evenG2AdapterStub";
-import type { DecisionResult, EventLogEntry } from "./engine/types";
+import type { LiveContextOverride } from "./audio/audioTypes";
+import { G2RuntimeController } from "./glasses/g2RuntimeController";
+import type { Cue, DecisionResult, EventLogEntry } from "./engine/types";
+import { createMemoryClient } from "./memory/createMemoryClient";
+import type { MemoryClient, MemoryStatus } from "./memory/memoryClient";
+import { LocalMemoryClient } from "./memory/localMemoryClient";
+import { memorySummaryToDemoMemory } from "./memory/memoryToDemoMemory";
+import type { CueFeedback, MemorySummary, Routine } from "../shared/types";
 
 const DEFAULT_SCENARIO_ID = "kitchen_timer";
 
@@ -32,6 +32,7 @@ const DEFAULT_OVERRIDE: LiveContextOverride = {
   cookingRoutine: true,
   deliveryExpected: false,
   eventMode: false,
+  direction: "unknown",
 };
 
 function decisionToEntry(decision: DecisionResult): EventLogEntry {
@@ -49,33 +50,44 @@ function decisionToEntry(decision: DecisionResult): EventLogEntry {
 }
 
 export default function App() {
-  const [memory, setMemory] = useState(() => loadMemory());
-  const [decision, setDecision] = useState<DecisionResult | null>(() => {
-    const sc = getScenario(DEFAULT_SCENARIO_ID);
-    return sc ? decide({ scenario: sc, memory: loadMemory() }) : null;
-  });
-  const [log, setLog] = useState<EventLogEntry[]>(() => {
-    const sc = getScenario(DEFAULT_SCENARIO_ID);
-    if (!sc) return [];
-    return [decisionToEntry(decide({ scenario: sc, memory: loadMemory() }))];
-  });
+  // Memory client — initialised lazily; defaults to a local fallback so the
+  // engine has data to work with before the API probe completes.
+  const memoryClientRef = useRef<MemoryClient>(new LocalMemoryClient());
+  const [memorySummary, setMemorySummary] = useState<MemorySummary>(
+    () => memoryClientRef.current.current()
+  );
+  const [memoryStatus, setMemoryStatus] = useState<MemoryStatus>("local");
+  const [memoryBaseUrl, setMemoryBaseUrl] = useState<string>("http://localhost:8788");
+
+  // The brain expects a DemoMemory shape. We compute it from the persisted
+  // summary so saved items / routines flow into the engine.
+  const demoMemory = useMemo(
+    () => memorySummaryToDemoMemory(memorySummary),
+    [memorySummary]
+  );
+  const persistedRoutines: Routine[] = memorySummary.routines;
+
+  const [decision, setDecision] = useState<DecisionResult | null>(null);
+  const [log, setLog] = useState<EventLogEntry[]>([]);
   const [cueTick, setCueTick] = useState(0);
   const [override, setOverride] = useState<LiveContextOverride>(DEFAULT_OVERRIDE);
 
-  // Refs so the audio controller always sees the latest memory + override.
-  const memoryRef = useRef(memory);
+  // Refs so async controllers always see the latest dependencies.
+  const memoryRef = useRef(demoMemory);
   const overrideRef = useRef(override);
+  const routinesRef = useRef(persistedRoutines);
   useEffect(() => {
-    memoryRef.current = memory;
-  }, [memory]);
+    memoryRef.current = demoMemory;
+  }, [demoMemory]);
   useEffect(() => {
     overrideRef.current = override;
   }, [override]);
+  useEffect(() => {
+    routinesRef.current = persistedRoutines;
+  }, [persistedRoutines]);
 
-  // HUD output adapters live for the lifetime of the app.
-  const simulatorAdapterRef = useRef(new SimulatorHudAdapter());
-  const g2StubRef = useRef(new EvenG2AdapterStub());
-
+  // Audio Awareness controller — fallback dev path. Glasses-first runtime
+  // is owned by g2RuntimeController below.
   const audioControllerRef = useRef<AudioController | null>(null);
   if (!audioControllerRef.current) {
     audioControllerRef.current = new AudioController({
@@ -86,54 +98,159 @@ export default function App() {
   }
   const audioController = audioControllerRef.current;
 
-  const [audioSnapshot, setAudioSnapshot] = useState<AudioControllerSnapshot>(
-    () => audioController.snapshot()
-  );
+  // G2 runtime controller — primary product path.
+  const g2ControllerRef = useRef<G2RuntimeController | null>(null);
+  if (!g2ControllerRef.current) {
+    g2ControllerRef.current = new G2RuntimeController({
+      getMemory: () => memoryRef.current,
+      getOverride: () => overrideRef.current,
+      getPersistedRoutines: () => routinesRef.current,
+    });
+  }
+  const g2Controller = g2ControllerRef.current;
 
-  // Persist recent cues into memory whenever a new decision lands.
+  // Probe the Memory API on mount; switch to API client if reachable.
   useEffect(() => {
-    if (!decision) return;
-    setMemory((prev) => recordRecentCue(prev, decision.cue));
-    // We want to react when the decision id changes, not memory.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [decision?.cue.id]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const handle = await createMemoryClient();
+        if (cancelled) return;
+        memoryClientRef.current = handle.client;
+        setMemoryStatus(handle.status);
+        setMemoryBaseUrl(handle.baseUrl);
+        await handle.client.refresh();
+        setMemorySummary(handle.client.current());
+      } catch {
+        // Stay on the local fallback.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  // Subscribe to audio controller decisions: update HUD, event log, fan out to adapters.
+  // Initialise G2 runtime probe (Even Hub bridge).
   useEffect(() => {
-    const unsubSnap = audioController.subscribe(setAudioSnapshot);
-    const unsubDecision = audioController.onDecision((d) => {
+    g2Controller.init();
+  }, [g2Controller]);
+
+  // Run the default scenario once the demo memory is settled. We do this in
+  // an effect so persisted routines/items are reflected the first time.
+  const ranInitialRef = useRef(false);
+  useEffect(() => {
+    if (ranInitialRef.current) return;
+    ranInitialRef.current = true;
+    const sc = getScenario(DEFAULT_SCENARIO_ID);
+    if (!sc) return;
+    const result = decide({
+      scenario: sc,
+      memory: demoMemory,
+      persistedRoutines,
+    });
+    setDecision(result);
+    setLog((prev) => [decisionToEntry(result), ...prev].slice(0, 14));
+    setCueTick((t) => t + 1);
+    g2Controller.simulatorHud.sendCue(result.cue);
+  }, [demoMemory, persistedRoutines, g2Controller]);
+
+  // Subscribe to AudioController decisions (fallback path).
+  useEffect(() => {
+    return audioController.onDecision((d) => {
       setDecision(d);
       setLog((prev) => [decisionToEntry(d), ...prev].slice(0, 14));
       setCueTick((t) => t + 1);
-      simulatorAdapterRef.current.sendCue(d.cue);
-      g2StubRef.current.sendCue(d.cue);
+      g2Controller.simulatorHud.sendCue(d.cue);
+      // Persist the cue if memory client supports it.
+      memoryClientRef.current
+        .recordCue({
+          cueText: d.cue.text,
+          priority: d.cue.priority,
+          actionType: d.cue.actionType,
+        })
+        .then(() => memoryClientRef.current.refresh())
+        .then(setMemorySummary)
+        .catch(() => {
+          /* offline */
+        });
     });
-    return () => {
-      unsubSnap();
-      unsubDecision();
-    };
-  }, [audioController]);
+  }, [audioController, g2Controller]);
+
+  // Subscribe to G2RuntimeController decisions (primary path).
+  useEffect(() => {
+    return g2Controller.onDecision((d) => {
+      setDecision(d);
+      setLog((prev) => [decisionToEntry(d), ...prev].slice(0, 14));
+      setCueTick((t) => t + 1);
+      memoryClientRef.current
+        .recordCue({
+          cueText: d.cue.text,
+          priority: d.cue.priority,
+          actionType: d.cue.actionType,
+        })
+        .then(() => memoryClientRef.current.refresh())
+        .then(setMemorySummary)
+        .catch(() => {
+          /* offline */
+        });
+    });
+  }, [g2Controller]);
 
   const runScenario = (id: string) => {
     const sc = getScenario(id);
     if (!sc) return;
-    const next = decide({ scenario: sc, memory: memoryRef.current });
+    const next = decide({
+      scenario: sc,
+      memory: memoryRef.current,
+      persistedRoutines: routinesRef.current,
+    });
     setDecision(next);
     setLog((prev) => [decisionToEntry(next), ...prev].slice(0, 14));
     setCueTick((t) => t + 1);
-    simulatorAdapterRef.current.sendCue(next.cue);
-    g2StubRef.current.sendCue(next.cue);
+    g2Controller.simulatorHud.sendCue(next.cue);
+    // Persist the cue (best-effort).
+    memoryClientRef.current
+      .recordCue({
+        cueText: next.cue.text,
+        priority: next.cue.priority,
+        actionType: next.cue.actionType,
+      })
+      .then(() => memoryClientRef.current.refresh())
+      .then(setMemorySummary)
+      .catch(() => {
+        /* offline */
+      });
+
+    // For the Promise scenario, also persist a Commitment so the demo
+    // demonstrates real durable memory.
+    if (id === "promise_jason") {
+      memoryClientRef.current
+        .addCommitment({
+          person: "Jason",
+          task: "send the deck",
+          deadlineText: "tonight",
+          actionType: "digital",
+          source: "demo",
+        })
+        .then(() => memoryClientRef.current.refresh())
+        .then(setMemorySummary)
+        .catch(() => {
+          /* offline */
+        });
+    }
   };
 
   const handleReset = async () => {
     await audioController.stop();
     audioController.clearDetections();
-    const fresh = resetMemory();
-    setMemory(fresh);
+    await g2Controller.stopListening();
+    await memoryClientRef.current.reset();
+    await memoryClientRef.current.refresh();
+    setMemorySummary(memoryClientRef.current.current());
     setDecision(null);
     setLog([]);
     setCueTick((t) => t + 1);
-    simulatorAdapterRef.current.clearCue();
+    g2Controller.simulatorHud.clearCue();
   };
 
   const handleReplay = () => {
@@ -154,18 +271,126 @@ export default function App() {
     });
   };
 
+  const handleMemoryCommand = async (text: string) => {
+    const result = await memoryClientRef.current.extract(text);
+    if (result.summary) setMemorySummary(result.summary);
+    // Optional tiny HUD confirmation. Picks the first extracted item.
+    const first = (result.extracted as Array<{ type: string; actionLabel?: string; task?: string }>)[0];
+    if (first) {
+      const text2 =
+        first.type === "routine" && first.actionLabel
+          ? `Memory saved:\n${first.actionLabel.slice(0, 24)}.`
+          : first.type === "commitment" && first.task
+          ? `Memory saved:\n${first.task.slice(0, 24)}.`
+          : "Memory saved.\nRoutine added.";
+      const cue: Cue = {
+        id: `cue_mem_${Date.now()}`,
+        text: text2,
+        priority: "low",
+        actionType: "digital",
+        confidence: 1,
+        timestamp: new Date().toISOString(),
+        signalsUsed: ["memory"],
+        reason: "Memory command saved.",
+      };
+      g2Controller.simulatorHud.sendCue(cue);
+      setDecision({
+        scenarioId: "memory_command",
+        title: "Memory command saved",
+        signals: [],
+        context: {
+          location: override.location,
+          activity: override.activity,
+          activeRoutines: [],
+          knownPeople: [],
+          openTasks: [],
+          importantItems: [],
+          signalsCombined: 0,
+        },
+        cue,
+        actions: [],
+        reasoningSteps: [
+          { label: "Memory command", detail: text },
+          ...((result.notes ?? []).map((n) => ({ label: "Note", detail: n }))),
+          {
+            label: `Extracted ${result.extracted.length} item(s)`,
+            detail: result.extracted.map((e) => (e as { type: string }).type).join(", "),
+          },
+        ],
+      });
+      setLog((prev) =>
+        [
+          decisionToEntry({
+            scenarioId: "memory_command",
+            title: "Memory command",
+            cue,
+            signals: [],
+            context: {
+              location: override.location,
+              activity: override.activity,
+              activeRoutines: [],
+              knownPeople: [],
+              openTasks: [],
+              importantItems: [],
+              signalsCombined: 0,
+            },
+            actions: [],
+            reasoningSteps: [
+              { label: "Memory command", detail: text },
+            ],
+          }),
+          ...prev,
+        ].slice(0, 14)
+      );
+      setCueTick((t) => t + 1);
+    }
+  };
+
+  const handleSendTestCue = async () => {
+    const cue: Cue = {
+      id: `cue_test_${Date.now()}`,
+      text: "Hearer test:\nG2 HUD ready.",
+      priority: "low",
+      actionType: "awareness",
+      confidence: 1,
+      timestamp: new Date().toISOString(),
+      signalsUsed: [],
+      reason: "Manual test cue",
+    };
+    await g2Controller.sendTestCue(cue);
+  };
+
+  const handleCueFeedback = async (feedback: CueFeedback) => {
+    if (!decision) return;
+    // Cues come from many sources; the recorded cue id may differ from the
+    // engine cue id when the API is connected. We update the latest recorded
+    // cue we know about.
+    const recent = memoryClientRef.current.current().recentCues[0];
+    if (!recent) return;
+    await memoryClientRef.current.setCueFeedback(recent.id, feedback);
+    await memoryClientRef.current.refresh();
+    setMemorySummary(memoryClientRef.current.current());
+  };
+
   const explainer = useMemo(() => {
     if (!decision) {
-      return "The classifier hears a likely event. The context engine decides whether it matters. The HUD only shows the shortest useful action.";
+      return "The classifier hears a likely event. The context engine decides whether it matters. The glasses show only the shortest useful action.";
     }
     return decision.cue.reason;
   }, [decision]);
 
+  const lastFeedback = memorySummary.recentCues[0]?.userFeedback ?? null;
+
   return (
     <div className="hr-app">
-      <Header />
+      <Header memoryStatus={memoryStatus} />
       <main className="hr-main">
         <aside className="hr-col">
+          <SystemPipelineCard />
+          <G2RuntimePanel
+            controller={g2Controller}
+            onSendTestCue={handleSendTestCue}
+          />
           <ScenarioPanel
             selectedId={decision?.scenarioId ?? null}
             onSelect={runScenario}
@@ -206,18 +431,21 @@ export default function App() {
               {scenarios.length} scenarios loaded
             </span>
             <span className="hr-chip hr-chip-accent">
-              Output: {simulatorAdapterRef.current.label}
-            </span>
-            <span className="hr-chip hr-chip-soft" title="Even G2 adapter is a stub — no BLE in this build.">
-              {g2StubRef.current.label}
+              Output: {g2Controller.snapshot().outputAdapter.kind === "even_g2_hud" ? "Even G2 HUD" : "Simulator HUD (dev fallback)"}
             </span>
           </div>
+          <MemoryCommandBox
+            onSubmit={handleMemoryCommand}
+            status={memoryStatus}
+            baseUrl={memoryBaseUrl}
+          />
           <SignalTimeline signals={decision?.signals ?? []} />
           <AudioAwarenessPanel
             controller={audioController}
             override={override}
             onOverrideChange={setOverride}
           />
+          <DatasetModelCard />
           <EventLog entries={log} />
         </section>
 
@@ -226,25 +454,27 @@ export default function App() {
           <ActionPanel
             cue={decision?.cue ?? null}
             actions={decision?.actions ?? []}
+            onFeedback={handleCueFeedback}
+            feedbackGiven={lastFeedback}
           />
-          <MemoryPanel memory={memory} />
+          <MemoryPanel memory={demoMemory} summary={memorySummary} />
         </aside>
       </main>
       <footer className="hr-footer">
         <div className="hr-privacy">
-          <span className="hr-privacy-tag">Simulator only</span>
+          <span className="hr-privacy-tag">Glasses-first runtime</span>
           <span className="hr-privacy-tag">Audio processed locally</span>
           <span className="hr-privacy-tag">Raw audio not stored</span>
           <span className="hr-privacy-tag">No medical claims</span>
+          <span className="hr-privacy-tag">User controls memory</span>
           <span className="hr-privacy-tag">Trusted-contact escalation opt-in</span>
         </div>
         <div>
-          Hearer · simulator-first MVP · audio classifier is local rule-based;
-          glasses output goes through the simulator adapter today.
+          Hearer · G2 mic → brain → G2 HUD. Browser mic and uploaded audio are
+          development/test fallbacks. The simulator HUD mirrors what the
+          glasses would show.
         </div>
       </footer>
-      {/* Reference snapshot to avoid unused-var lint when extending later */}
-      <span style={{ display: "none" }}>{audioSnapshot.classifierId}</span>
     </div>
   );
 }

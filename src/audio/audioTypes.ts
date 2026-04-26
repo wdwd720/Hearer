@@ -90,12 +90,23 @@ export interface AudioDetectionEvent {
   routeNote?: string;
 }
 
+export type SpatialDirection =
+  | "front"
+  | "left"
+  | "right"
+  | "behind"
+  | "unknown";
+
 export interface LiveContextOverride {
   location: import("../engine/types").LocationName;
   activity: import("../engine/types").MotionActivity;
   cookingRoutine: boolean;
   deliveryExpected: boolean;
   eventMode: boolean;
+  // Manually-provided direction. True spatial inference would need a mic
+  // array or device-specific spatial data — see the README's 360 awareness
+  // notes. This is the simulated path so the cue can read "horn on left".
+  direction: SpatialDirection;
 }
 
 export interface AudioControllerSnapshot {

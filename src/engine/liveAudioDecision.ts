@@ -20,6 +20,9 @@ import {
 } from "./cueCompressor";
 import { routeActions } from "./actionRouter";
 import { scorePriority } from "./priorityEngine";
+import { findMatchingRoutines } from "./contextEngine";
+import { inferWorldState, type WorldStateInterpretation } from "./worldStateEngine";
+import type { Routine } from "../../shared/types";
 import type {
   AudioSignal,
   Cue,
@@ -43,12 +46,38 @@ interface LiveDecideInput {
   override: LiveAudioContextOverride;
   memory: DemoMemory;
   classifierExplanation?: string;
+  persistedRoutines?: Routine[];
+  direction?: "front" | "left" | "right" | "behind" | "unknown";
 }
 
 const HORN_LIKE: AudioSignal["event"][] = ["horn", "siren"];
 
+function rankPriority(p: Priority): number {
+  switch (p) {
+    case "low":
+      return 0;
+    case "medium":
+      return 1;
+    case "high":
+      return 2;
+    case "urgent":
+      return 3;
+  }
+}
+
 export function decideFromLiveAudio(input: LiveDecideInput): DecisionResult {
-  const { audioSignal, override, memory, classifierExplanation } = input;
+  const {
+    audioSignal,
+    override,
+    memory,
+    classifierExplanation,
+    persistedRoutines,
+    direction,
+  } = input;
+  // Prefer the explicit direction the controller provides; fall back to the
+  // signal's own direction field.
+  const effectiveDirection: "front" | "left" | "right" | "behind" | "unknown" =
+    direction ?? audioSignal.direction ?? "unknown";
 
   const now = new Date().toISOString();
   const signals: Signal[] = [audioSignal];
@@ -97,9 +126,26 @@ export function decideFromLiveAudio(input: LiveDecideInput): DecisionResult {
     });
   }
 
+  // World-state interpretation. This is what makes Hearer different from
+  // a sound classifier: the same beep gets a different cue depending on
+  // whether the user has a saved cooking routine, what the live context
+  // says, and what time of day it is.
+  const worldState: WorldStateInterpretation = inferWorldState({
+    audio: audioSignal,
+    override: {
+      location: override.location,
+      activity: override.activity,
+      cookingRoutine: override.cookingRoutine,
+      deliveryExpected: override.deliveryExpected,
+      eventMode: override.eventMode,
+    },
+    persistedRoutines: persistedRoutines ?? [],
+    hourOfDay: new Date().getHours(),
+  });
+
   // Decide which scripted scenario the live signal best matches, since the
   // existing priority engine has scenario-specific rules.
-  const matched = matchScenario(audioSignal, override);
+  const matched = matchScenario(audioSignal, override, effectiveDirection);
 
   // Compose a synthetic scenario object — never inserted into the scenarios
   // catalogue; only used for engine internals.
@@ -149,6 +195,17 @@ export function decideFromLiveAudio(input: LiveDecideInput): DecisionResult {
   if (audioSignal.event === "timer_beep" && override.location === "unknown") {
     priority = audioSignal.confidence >= 0.65 ? "high" : "medium";
   }
+  // World-state floor: a confident cooking-routine match makes a beep urgent,
+  // even if the priority engine alone wouldn't. Hearer is honest about
+  // certainty (it's "Check stove", not "Stove is on") but it's allowed to
+  // raise priority when the user's own memory says this matters.
+  if (
+    worldState.riskKind === "possible_unattended_cooking" &&
+    worldState.matchedRoutineIds.length > 0 &&
+    rankPriority(worldState.suggestedPriority) > rankPriority(priority)
+  ) {
+    priority = worldState.suggestedPriority;
+  }
   if (audioSignal.event === "speech_nearby") {
     priority = "low";
   }
@@ -160,7 +217,7 @@ export function decideFromLiveAudio(input: LiveDecideInput): DecisionResult {
     id: `cue_live_${audioSignal.event}_${Date.now()}`,
     text: compressed.text,
     priority,
-    reason: `${compressed.reason} · ${priorityResult.explanation}`,
+    reason: `${worldState.reason} · ${compressed.reason} · ${priorityResult.explanation}`,
     actionType: compressed.actionType,
     confidence: Math.round(audioSignal.confidence * 100) / 100,
     timestamp: now,
@@ -169,10 +226,30 @@ export function decideFromLiveAudio(input: LiveDecideInput): DecisionResult {
 
   const routed = routeActions(scenario, cue, context);
 
+  // Memory-aware: log if the persisted routines for this scenario already exist.
+  const liveContextState = {
+    location: override.location,
+    activity: override.activity,
+    activeRoutines: context.activeRoutines,
+    knownPeople: context.knownPeople,
+    openTasks: context.openTasks,
+    importantItems: context.importantItems,
+    signalsCombined: signals.length,
+  };
+  const matchedRoutines = findMatchingRoutines(
+    matched.scenarioId,
+    liveContextState,
+    persistedRoutines ?? []
+  );
+
   const reasoningSteps = [
     {
       label: `Live audio detected: ${audioSignal.event.replace("_", " ")}`,
       detail: classifierExplanation,
+    },
+    {
+      label: `World-state: ${worldState.riskKind} (certainty ${worldState.certainty})`,
+      detail: worldState.reason,
     },
     {
       label: `Confidence: ${(audioSignal.confidence * 100).toFixed(0)}%`,
@@ -211,6 +288,20 @@ export function decideFromLiveAudio(input: LiveDecideInput): DecisionResult {
     },
   ];
 
+  if (matchedRoutines.length > 0) {
+    reasoningSteps.splice(3, 0, {
+      label: `Saved routine matched: ${matchedRoutines[0].name}`,
+      detail: `${matchedRoutines[0].triggerDescription} → ${matchedRoutines[0].actionLabel}`,
+    });
+  }
+
+  if (effectiveDirection !== "unknown") {
+    reasoningSteps.splice(2, 0, {
+      label: `Direction: ${effectiveDirection}`,
+      detail: "Spatial signal supplied (simulated)",
+    });
+  }
+
   return {
     scenarioId: scenario.id,
     title: scenario.title,
@@ -231,7 +322,8 @@ interface MatchedScenario {
 
 function matchScenario(
   audio: AudioSignal,
-  override: LiveAudioContextOverride
+  override: LiveAudioContextOverride,
+  direction: "front" | "left" | "right" | "behind" | "unknown"
 ): MatchedScenario {
   const inKitchen =
     override.location === "kitchen" ||
@@ -270,12 +362,13 @@ function matchScenario(
     }
     case "siren":
     case "horn": {
+      const kind = audio.event === "siren" ? "siren" : "horn";
       if (onStreet) {
         return {
           scenarioId: "road_siren",
           expectedPriority: "urgent",
           expectedActionType: "physical",
-          compressed: compressRoadAlertCue(audio.event === "siren" ? "siren" : "horn"),
+          compressed: compressRoadAlertCue(kind, direction),
         };
       }
       return {

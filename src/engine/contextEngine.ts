@@ -1,6 +1,7 @@
 import { compressCandidateCue } from "./cueCompressor";
 import { scorePriority } from "./priorityEngine";
 import { routeActions } from "./actionRouter";
+import type { Routine } from "../../shared/types";
 import type {
   ContextState,
   Cue,
@@ -10,6 +11,35 @@ import type {
   ScenarioDefinition,
   Signal,
 } from "./types";
+
+export function findMatchingRoutines(
+  scenarioId: string,
+  context: ContextState,
+  routines: Routine[]
+): Routine[] {
+  if (!routines || routines.length === 0) return [];
+  return routines.filter((r) => {
+    if (!r.enabled) return false;
+    const desc = r.triggerDescription.toLowerCase();
+    if (scenarioId === "leaving_home") {
+      return desc.includes("leaving home") || desc.includes("home + school");
+    }
+    if (scenarioId === "pharmacy_arrival") {
+      return desc.includes("pharmacy");
+    }
+    if (scenarioId === "evening_meds") {
+      return desc.includes("evening") || desc.includes("after dinner");
+    }
+    if (scenarioId === "kitchen_timer") {
+      return desc.includes("kitchen") || desc.includes("cooking");
+    }
+    // Live scenarios: match on context location keyword.
+    if (context.location !== "unknown" && desc.includes(context.location)) {
+      return true;
+    }
+    return false;
+  });
+}
 
 function buildBaseContext(memory: DemoMemory): ContextState {
   return {
@@ -132,9 +162,10 @@ function reasoningFor(
 export interface DecideInput {
   scenario: ScenarioDefinition;
   memory: DemoMemory;
+  persistedRoutines?: Routine[];
 }
 
-export function decide({ scenario, memory }: DecideInput): DecisionResult {
+export function decide({ scenario, memory, persistedRoutines }: DecideInput): DecisionResult {
   // Build the enriched context.
   const base = buildBaseContext(memory);
   const enriched = applySignalsToContext(base, scenario.signals);
@@ -151,11 +182,19 @@ export function decide({ scenario, memory }: DecideInput): DecisionResult {
     signalsCombined: enriched.signalsCombined,
   };
 
+  // Pull any persisted routines that match this scenario/context.
+  const matchedRoutines = findMatchingRoutines(
+    scenario.id,
+    context,
+    persistedRoutines ?? []
+  );
+
   // Compress the cue.
   const compressed = compressCandidateCue({
     scenarioId: scenario.id,
     signals: scenario.signals,
     context,
+    matchedRoutineActionLabels: matchedRoutines.map((r) => r.actionLabel),
   });
 
   // Score priority with full context.
@@ -181,8 +220,16 @@ export function decide({ scenario, memory }: DecideInput): DecisionResult {
   const routed = routeActions(scenario, cue, context);
 
   // Build reasoning trail.
-  const reasoningSteps = [
+  const reasoningSteps: ReasoningStep[] = [
     ...reasoningFor(scenario, scenario.signals, context),
+  ];
+  if (matchedRoutines.length > 0) {
+    reasoningSteps.push({
+      label: `Saved routine matched: ${matchedRoutines[0].name}`,
+      detail: `${matchedRoutines[0].triggerDescription} → ${matchedRoutines[0].actionLabel}`,
+    });
+  }
+  reasoningSteps.push(
     {
       label: `Priority assigned: ${priority.priority}`,
       detail: priority.explanation,
@@ -199,8 +246,8 @@ export function decide({ scenario, memory }: DecideInput): DecisionResult {
         (routed.digitalActions.length > 0
           ? `${routed.digitalActions.length} digital action(s) prepared`
           : "No follow-up action"),
-    },
-  ];
+    }
+  );
 
   return {
     scenarioId: scenario.id,

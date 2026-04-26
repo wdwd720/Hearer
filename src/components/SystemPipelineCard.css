@@ -1,0 +1,51 @@
+.hr-pipe {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hr-pipe-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hr-pipe-step {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--hr-border);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.hr-pipe-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--hr-accent);
+  border: 1px solid rgba(110, 230, 200, 0.4);
+  background: rgba(110, 230, 200, 0.08);
+  font-family: "JetBrains Mono", "SF Mono", "Menlo", monospace;
+}
+
+.hr-pipe-text {
+  font-size: 12px;
+  color: var(--hr-text);
+}
+
+.hr-pipe-note {
+  font-size: 11px;
+  color: var(--hr-text-muted);
+  line-height: 1.4;
+}

@@ -15,6 +15,7 @@ import {
   generateSpeechLikeFixture,
 } from "../../audio/audioFixtures";
 import type { LocationName, MotionActivity } from "../../engine/types";
+import type { SpatialDirection } from "../../audio/audioTypes";
 import { AudioLevelMeter } from "./AudioLevelMeter";
 import { AudioClassifierStatus } from "./AudioClassifierStatus";
 import { AudioDetectionLog } from "./AudioDetectionLog";
@@ -46,6 +47,14 @@ const ACTIVITY_OPTIONS: MotionActivity[] = [
   "leaving",
   "arriving",
   "meeting",
+];
+
+const DIRECTION_OPTIONS: SpatialDirection[] = [
+  "unknown",
+  "front",
+  "left",
+  "right",
+  "behind",
 ];
 
 const STATUS_LABEL: Record<AudioControllerSnapshot["status"], string> = {
@@ -149,7 +158,7 @@ export function AudioAwarenessPanel({
   return (
     <section className="hr-panel hr-aap" aria-label="Live audio awareness">
       <header className="hr-panel-header">
-        <h2 className="hr-panel-title">Live audio awareness</h2>
+        <h2 className="hr-panel-title">Audio fallback (dev)</h2>
         <span className={`hr-aap-status ${statusClass}`}>
           {STATUS_LABEL[snapshot.status]}
           {snapshot.source ? ` · ${snapshot.source.replace("_", " ")}` : ""}
@@ -157,8 +166,10 @@ export function AudioAwarenessPanel({
       </header>
 
       <div className="hr-aap-meta">
-        Hearer turns sounds and context into one physical-world cue. Audio
-        stays local in this demo. Raw audio is not stored.
+        <strong>Fallback browser mic test.</strong> The intended primary
+        sensor is the Even G2 microphone via the Even Hub bridge. Browser mic,
+        tab/system audio, and uploaded files are dev fallbacks; generated
+        fixtures are deterministic test inputs. Raw audio is not stored.
       </div>
 
       <div className="hr-aap-meter-row">
@@ -171,19 +182,20 @@ export function AudioAwarenessPanel({
       <div className="hr-aap-controls">
         <button
           type="button"
-          className="hr-btn hr-btn-primary"
+          className="hr-btn hr-btn-soft"
           onClick={handleStartMic}
           disabled={busy || isListening}
+          title="Fallback browser mic — not the primary sensor"
         >
-          Start microphone
+          Browser mic (fallback)
         </button>
         <button
           type="button"
-          className="hr-btn"
+          className="hr-btn hr-btn-soft"
           onClick={handleStartDisplay}
           disabled={busy || isListening}
         >
-          Share tab/system audio
+          Tab / system audio (fallback)
         </button>
         <button
           type="button"
@@ -198,7 +210,7 @@ export function AudioAwarenessPanel({
       <AudioFileDropzone onFile={handleFile} disabled={busy} />
 
       <div className="hr-aap-fixtures">
-        <div className="hr-aap-fixtures-label">Test fixtures</div>
+        <div className="hr-aap-fixtures-label">Deterministic test inputs</div>
         <div className="hr-aap-fixtures-row">
           <button className="hr-btn hr-btn-mini" onClick={() => runFixture(generateBeepFixture)} disabled={busy}>
             Beep ×5
@@ -256,6 +268,24 @@ export function AudioAwarenessPanel({
               }
             >
               {ACTIVITY_OPTIONS.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="hr-aap-context-row">
+          <label className="hr-aap-field">
+            <span>Direction (simulated 360)</span>
+            <select
+              value={override.direction}
+              onChange={(e) =>
+                update({ direction: e.target.value as SpatialDirection })
+              }
+              title="True 360 awareness needs a mic array or device-specific spatial data. This is the simulated path."
+            >
+              {DIRECTION_OPTIONS.map((o) => (
                 <option key={o} value={o}>
                   {o}
                 </option>

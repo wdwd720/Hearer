@@ -1,24 +1,36 @@
 {
   "name": "hearer",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Hearer — Missed-cue prevention for the real world. Simulator-first proactive accessibility agent.",
   "scripts": {
     "dev": "vite",
+    "dev:host": "vite --host 0.0.0.0",
+    "dev:all": "concurrently -n web,api -c cyan,magenta \"npm run dev:host\" \"npm run server\"",
+    "server": "tsx server/src/server.ts",
+    "server:build": "tsc -p server/tsconfig.json",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "fastify": "^4.28.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
+  "optionalDependencies": {
+    "better-sqlite3": "^11.5.0"
+  },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^20.16.5",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.0.1",
+    "tsx": "^4.19.1",
     "typescript": "^5.6.3",
     "vite": "^5.4.11",
     "vitest": "^2.1.8"
