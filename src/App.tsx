@@ -21,8 +21,19 @@ import type { Cue, DecisionResult, EventLogEntry } from "./engine/types";
 import { createMemoryClient } from "./memory/createMemoryClient";
 import type { MemoryClient, MemoryStatus } from "./memory/memoryClient";
 import { LocalMemoryClient } from "./memory/localMemoryClient";
+import { ApiMemoryClient } from "./memory/apiMemoryClient";
 import { memorySummaryToDemoMemory } from "./memory/memoryToDemoMemory";
-import type { CueFeedback, MemorySummary, Routine } from "../shared/types";
+import type {
+  ServerLlmStatus,
+} from "./memory/memoryClient";
+import type {
+  CueFeedback,
+  MemorySummary,
+  Routine,
+} from "../shared/types";
+import type {
+  DecideResponse,
+} from "./api/hearerApi";
 
 const DEFAULT_SCENARIO_ID = "kitchen_timer";
 
@@ -34,6 +45,16 @@ const DEFAULT_OVERRIDE: LiveContextOverride = {
   eventMode: false,
   direction: "unknown",
 };
+
+function bucketHour(): string {
+  const h = new Date().getHours();
+  if (h < 5) return "late_night";
+  if (h < 11) return "morning";
+  if (h < 14) return "midday";
+  if (h < 17) return "afternoon";
+  if (h < 21) return "evening";
+  return "night";
+}
 
 function decisionToEntry(decision: DecisionResult): EventLogEntry {
   return {
@@ -58,6 +79,8 @@ export default function App() {
   );
   const [memoryStatus, setMemoryStatus] = useState<MemoryStatus>("local");
   const [memoryBaseUrl, setMemoryBaseUrl] = useState<string>("http://localhost:8788");
+  const [llmStatus, setLlmStatus] = useState<ServerLlmStatus | null>(null);
+  const [useServerBrain, setUseServerBrain] = useState<boolean>(true);
 
   // The brain expects a DemoMemory shape. We compute it from the persisted
   // summary so saved items / routines flow into the engine.
@@ -121,6 +144,11 @@ export default function App() {
         setMemoryBaseUrl(handle.baseUrl);
         await handle.client.refresh();
         setMemorySummary(handle.client.current());
+        // Probe LLM status if available.
+        if (handle.client.llmStatus) {
+          const ls = await handle.client.llmStatus();
+          if (!cancelled && ls) setLlmStatus(ls);
+        }
       } catch {
         // Stay on the local fallback.
       }
@@ -129,6 +157,78 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+
+  // Install / remove the server-brain hook on the audio controller based on
+  // whether the API is connected and the user wants it. The hook turns the
+  // /api/decide response into a Hearer DecisionResult that REPLACES the
+  // local one when the server returns a real cue.
+  useEffect(() => {
+    const apiClient =
+      memoryClientRef.current instanceof ApiMemoryClient
+        ? (memoryClientRef.current as ApiMemoryClient)
+        : null;
+    if (!apiClient || !useServerBrain) {
+      audioController.setServerBrain(undefined);
+      return;
+    }
+    audioController.setServerBrain(async (signal, classification) => {
+      try {
+        const response: DecideResponse = await apiClient.api.decide({
+          detection: {
+            label: classification.label,
+            confidence: classification.confidence,
+            source: "simulator",
+            direction: signal.direction,
+          },
+          contextOverride: {
+            location: overrideRef.current.location,
+            activity: overrideRef.current.activity,
+            timeOfDay: bucketHour(),
+            activeRoutines: routinesRef.current
+              .filter((r) => r.enabled)
+              .map((r) => r.name),
+          },
+          source: "simulator",
+          direction: overrideRef.current.direction,
+        });
+        if (!response.cue) return null;
+        const cue: Cue = {
+          id: response.cue.id,
+          text: response.cue.text,
+          priority: response.cue.priority,
+          actionType: response.cue.actionType,
+          confidence: response.cue.confidence,
+          timestamp: response.cue.timestamp,
+          signalsUsed: response.cue.signalsUsed,
+          reason: `Server brain (${response.mode}): ${response.cue.reason}`,
+        };
+        return {
+          scenarioId: "server_brain",
+          title: `Server brain · ${response.mode}`,
+          signals: [signal],
+          context: {
+            location: overrideRef.current.location,
+            activity: overrideRef.current.activity,
+            activeRoutines: routinesRef.current
+              .filter((r) => r.enabled)
+              .map((r) => r.name),
+            knownPeople: [],
+            openTasks: [],
+            importantItems: [],
+            signalsCombined: 1,
+          },
+          cue,
+          actions: [],
+          reasoningSteps: [
+            { label: "Server brain mode", detail: response.mode },
+            { label: "Reason", detail: response.cue.reason },
+          ],
+        };
+      } catch {
+        return null;
+      }
+    });
+  }, [audioController, useServerBrain, memoryStatus, llmStatus?.provider]);
 
   // Initialise G2 runtime probe (Even Hub bridge).
   useEffect(() => {
@@ -271,9 +371,12 @@ export default function App() {
     });
   };
 
-  const handleMemoryCommand = async (text: string) => {
+  const handleMemoryCommand = async (
+    text: string
+  ): Promise<{ mode?: "llm" | "rule_based"; count?: number } | void> => {
     const result = await memoryClientRef.current.extract(text);
     if (result.summary) setMemorySummary(result.summary);
+    const mode = (result as { mode?: "llm" | "rule_based" }).mode;
     // Optional tiny HUD confirmation. Picks the first extracted item.
     const first = (result.extracted as Array<{ type: string; actionLabel?: string; task?: string }>)[0];
     if (first) {
@@ -344,6 +447,7 @@ export default function App() {
       );
       setCueTick((t) => t + 1);
     }
+    return { mode, count: result.extracted.length };
   };
 
   const handleSendTestCue = async () => {
@@ -383,7 +487,7 @@ export default function App() {
 
   return (
     <div className="hr-app">
-      <Header memoryStatus={memoryStatus} />
+      <Header memoryStatus={memoryStatus} llmStatus={llmStatus} />
       <main className="hr-main">
         <aside className="hr-col">
           <SystemPipelineCard />
@@ -433,6 +537,26 @@ export default function App() {
             <span className="hr-chip hr-chip-accent">
               Output: {g2Controller.snapshot().outputAdapter.kind === "even_g2_hud" ? "Even G2 HUD" : "Simulator HUD (dev fallback)"}
             </span>
+            <label
+              className={`hr-chip ${
+                memoryStatus === "api" ? "hr-chip-accent" : "hr-chip-soft"
+              }`}
+              title={
+                memoryStatus === "api"
+                  ? "Forward stable detections to /api/decide and use the server brain when available."
+                  : "Available when Memory API is connected."
+              }
+              style={{ cursor: memoryStatus === "api" ? "pointer" : "not-allowed" }}
+            >
+              <input
+                type="checkbox"
+                checked={useServerBrain && memoryStatus === "api"}
+                onChange={(e) => setUseServerBrain(e.target.checked)}
+                disabled={memoryStatus !== "api"}
+                style={{ marginRight: 6, accentColor: "var(--hr-accent)" }}
+              />
+              Server brain
+            </label>
           </div>
           <MemoryCommandBox
             onSubmit={handleMemoryCommand}

@@ -2,6 +2,13 @@ import type { MemorySummary } from "../../shared/types";
 import type { HearerApiClient } from "../api/hearerApi";
 import type { MemoryClient } from "./memoryClient";
 
+interface ExtractApiResponse {
+  mode?: "llm" | "rule_based";
+  extracted: unknown[];
+  summary?: MemorySummary;
+  notes?: string[];
+}
+
 const EMPTY_SUMMARY: MemorySummary = {
   userProfile: {
     id: "default",
@@ -21,7 +28,7 @@ const EMPTY_SUMMARY: MemorySummary = {
 
 export class ApiMemoryClient implements MemoryClient {
   status: "api" | "offline" = "api";
-  private api: HearerApiClient;
+  api: HearerApiClient;
   private cached: MemorySummary = EMPTY_SUMMARY;
 
   constructor(api: HearerApiClient) {
@@ -30,6 +37,14 @@ export class ApiMemoryClient implements MemoryClient {
 
   current(): MemorySummary {
     return this.cached;
+  }
+
+  async llmStatus() {
+    try {
+      return await this.api.llmStatus();
+    } catch {
+      return null;
+    }
   }
 
   async refresh(): Promise<MemorySummary> {
@@ -91,12 +106,13 @@ export class ApiMemoryClient implements MemoryClient {
   }
 
   async extract(text: string) {
-    const result = await this.api.extract(text);
+    const result = (await this.api.extract(text)) as ExtractApiResponse;
     if (result.summary) this.cached = result.summary;
     return {
       extracted: result.extracted as unknown[],
       summary: this.cached,
       notes: result.notes,
+      mode: result.mode,
     };
   }
 

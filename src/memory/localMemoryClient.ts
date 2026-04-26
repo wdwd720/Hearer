@@ -253,6 +253,7 @@ export class LocalMemoryClient implements MemoryClient {
       extracted: result.extracted as unknown[],
       notes: result.notes,
       summary: this.state,
+      mode: "rule_based" as const,
     };
   }
 

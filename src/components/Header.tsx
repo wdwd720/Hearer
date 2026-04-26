@@ -2,9 +2,34 @@ import "./Header.css";
 
 interface HeaderProps {
   memoryStatus?: "api" | "local" | "offline";
+  llmStatus?: {
+    enabled: boolean;
+    configured: boolean;
+    provider: "openai_compatible" | "mock" | "disabled";
+    model?: string;
+    reason?: string;
+  } | null;
 }
 
-export function Header({ memoryStatus }: HeaderProps) {
+function describeLlm(llm: HeaderProps["llmStatus"]): {
+  label: string;
+  variant: "accent" | "warn" | "soft";
+} {
+  if (!llm) return { label: "LLM: unknown", variant: "soft" };
+  if (llm.provider === "openai_compatible" && llm.configured && llm.enabled) {
+    return { label: `LLM: connected · ${llm.model ?? ""}`, variant: "accent" };
+  }
+  if (llm.provider === "mock") {
+    return { label: `LLM: mock${llm.model ? ` · ${llm.model}` : ""}`, variant: "accent" };
+  }
+  if (llm.enabled && !llm.configured) {
+    return { label: "LLM: key missing", variant: "warn" };
+  }
+  return { label: "LLM: disabled fallback", variant: "soft" };
+}
+
+export function Header({ memoryStatus, llmStatus }: HeaderProps) {
+  const llm = describeLlm(llmStatus ?? null);
   return (
     <header className="hr-header">
       <div className="hr-header-left">
@@ -42,6 +67,12 @@ export function Header({ memoryStatus }: HeaderProps) {
               : "offline"}
           </span>
         )}
+        <span
+          className={`hr-chip hr-chip-${llm.variant}`}
+          title={llmStatus?.reason ?? "LLM provider status"}
+        >
+          {llm.label}
+        </span>
       </div>
     </header>
   );

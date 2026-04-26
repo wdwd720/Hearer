@@ -18,9 +18,57 @@ import type {
   Routine,
 } from "../../shared/types";
 
+export interface LlmStatusResponse {
+  enabled: boolean;
+  configured: boolean;
+  provider: "openai_compatible" | "mock" | "disabled";
+  model?: string;
+  reason?: string;
+}
+
+export interface DecideResponse {
+  mode: "llm" | "rule_based" | "llm_rejected_fallback";
+  cue: {
+    id: string;
+    text: string;
+    priority: "low" | "medium" | "high" | "urgent";
+    actionType: "physical" | "digital" | "awareness";
+    confidence: number;
+    timestamp: string;
+    reason: string;
+    signalsUsed: string[];
+  } | null;
+  detectionId?: string;
+  cueId?: string;
+  fallbackUsed: boolean;
+  fallbackReason?: string;
+  rejected?: { reason: string; raw?: unknown };
+  rawReasoning?: unknown;
+}
+
+export interface DecideRequest {
+  detection: {
+    label: string;
+    confidence: number;
+    source: string;
+    direction?: "front" | "left" | "right" | "behind" | "unknown";
+  };
+  contextOverride?: {
+    location?: string;
+    activity?: string;
+    timeOfDay?: string;
+    activeRoutines?: string[];
+  };
+  transcriptSnippet?: string;
+  source?: "g2" | "simulator" | "browser_fallback";
+  direction?: "front" | "left" | "right" | "behind" | "unknown";
+}
+
 export interface HearerApiClient {
   baseUrl: string;
   health(): Promise<ApiHealth>;
+  llmStatus(): Promise<LlmStatusResponse>;
+  decide(input: DecideRequest): Promise<DecideResponse>;
   summary(): Promise<MemorySummary>;
   addPerson(input: Partial<KnownPerson> & { name: string }): Promise<KnownPerson>;
   addItem(input: Partial<ImportantItem> & { label: string }): Promise<ImportantItem>;
@@ -108,6 +156,14 @@ export function createHearerApiClient(
     baseUrl,
 
     health: () => request<ApiHealth>(`${baseUrl}/api/health`, { timeoutMs: 1500 }),
+    llmStatus: () =>
+      request<LlmStatusResponse>(`${baseUrl}/api/llm/status`, { timeoutMs: 1500 }),
+    decide: (input: DecideRequest) =>
+      request<DecideResponse>(`${baseUrl}/api/decide`, {
+        method: "POST",
+        body: JSON.stringify(input),
+        timeoutMs: 15000,
+      }),
     summary: () => request<MemorySummary>(`${baseUrl}/api/memory/summary`),
 
     addPerson: (input) =>

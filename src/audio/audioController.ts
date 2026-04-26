@@ -46,6 +46,16 @@ export interface AudioControllerOptions {
   getMemory: () => DemoMemory;
   getOverride: () => LiveContextOverride;
   autoRoute?: boolean;
+  /**
+   * Optional server-brain hook. When set, a successful return value
+   * REPLACES the local deterministic decision before the cue reaches the
+   * HUD. Returning null falls back to the local result. Hooks should be
+   * fast (<2s) — they're awaited synchronously inside the audio loop.
+   */
+  serverBrain?: (
+    signal: AudioSignal,
+    classification: AudioClassification
+  ) => Promise<DecisionResult | null>;
 }
 
 export class AudioController {
@@ -67,6 +77,10 @@ export class AudioController {
   private decisionListeners = new Set<DecisionListener>();
 
   private cooldown = new Map<string, number>();
+  private serverBrain?: (
+    signal: AudioSignal,
+    classification: AudioClassification
+  ) => Promise<DecisionResult | null>;
 
   constructor(options: AudioControllerOptions) {
     this.classifier = options.classifier ?? new RuleBasedAudioClassifier();
@@ -77,6 +91,17 @@ export class AudioController {
     this.getMemory = options.getMemory;
     this.getOverride = options.getOverride;
     this.autoRoute = options.autoRoute ?? true;
+    this.serverBrain = options.serverBrain;
+  }
+
+  /** Replace (or clear with `undefined`) the server-brain hook. */
+  setServerBrain(
+    hook?: (
+      signal: AudioSignal,
+      classification: AudioClassification
+    ) => Promise<DecisionResult | null>
+  ): void {
+    this.serverBrain = hook;
   }
 
   subscribe(listener: Listener): () => void {
@@ -326,13 +351,30 @@ export class AudioController {
     signal: AudioSignal,
     classification: AudioClassification
   ): DecisionResult {
-    const decision = decideFromLiveAudio({
+    const localDecision = decideFromLiveAudio({
       audioSignal: signal,
       override: this.getOverride(),
       memory: this.getMemory(),
       classifierExplanation: classification.explanation,
     });
-    for (const l of this.decisionListeners) l(decision);
-    return decision;
+
+    // Synchronous emit of the local candidate keeps the dev event log
+    // responsive even when the server brain hook is in flight. If the hook
+    // returns a different decision, we re-emit it so the HUD updates.
+    for (const l of this.decisionListeners) l(localDecision);
+
+    if (this.serverBrain) {
+      this.serverBrain(signal, classification)
+        .then((serverDecision) => {
+          if (!serverDecision) return;
+          if (serverDecision.cue.id === localDecision.cue.id) return;
+          for (const l of this.decisionListeners) l(serverDecision);
+          this.emit();
+        })
+        .catch(() => {
+          // Server-brain failures are benign — the local decision already shipped.
+        });
+    }
+    return localDecision;
   }
 }
