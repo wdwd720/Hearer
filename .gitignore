@@ -9,6 +9,10 @@ dist-ssr
 *.log
 .env
 .env.*
+!.env.example
+.env.local
+server/.env
+*.db
 
 # Hearer Memory API runtime data
 server/data/

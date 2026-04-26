@@ -2,7 +2,7 @@ import { useState } from "react";
 import "./MemoryCommandBox.css";
 
 interface MemoryCommandBoxProps {
-  onSubmit: (text: string) => Promise<void>;
+  onSubmit: (text: string) => Promise<{ mode?: "llm" | "rule_based"; count?: number } | void>;
   status?: "api" | "local" | "offline";
   baseUrl?: string;
 }
@@ -24,8 +24,15 @@ export function MemoryCommandBox({ onSubmit, status, baseUrl }: MemoryCommandBox
     setBusy(true);
     setLastNote(null);
     try {
-      await onSubmit(value.trim());
-      setLastNote("Saved.");
+      const result = await onSubmit(value.trim());
+      const mode = result?.mode;
+      const count = result?.count ?? 0;
+      const modeLabel = mode === "llm" ? "LLM" : mode === "rule_based" ? "rule-based" : "saved";
+      setLastNote(
+        count > 0
+          ? `Saved ${count} item${count === 1 ? "" : "s"} via ${modeLabel} extractor.`
+          : `Nothing structured found (${modeLabel}).`
+      );
       setValue("");
     } catch (err) {
       setLastNote(

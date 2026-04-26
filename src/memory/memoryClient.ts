@@ -20,10 +20,20 @@ import type {
 
 export type MemoryStatus = "api" | "local" | "offline";
 
+export interface ServerLlmStatus {
+  enabled: boolean;
+  configured: boolean;
+  provider: "openai_compatible" | "mock" | "disabled";
+  model?: string;
+  reason?: string;
+}
+
 export interface MemoryClient {
   status: MemoryStatus;
   refresh(): Promise<MemorySummary>;
   current(): MemorySummary;
+  /** Returns the current LLM provider status, if the API is reachable. */
+  llmStatus?(): Promise<ServerLlmStatus | null>;
   addRoutine(r: {
     name: string;
     triggerType: Routine["triggerType"];
@@ -51,6 +61,11 @@ export interface MemoryClient {
     routedCueId?: string;
   }): Promise<unknown>;
   setCueFeedback(cueId: string, feedback: CueFeedback): Promise<CueRecord | null>;
-  extract(text: string): Promise<{ extracted: unknown[]; summary: MemorySummary; notes?: string[] }>;
+  extract(text: string): Promise<{
+    extracted: unknown[];
+    summary: MemorySummary;
+    notes?: string[];
+    mode?: "llm" | "rule_based";
+  }>;
   reset(): Promise<void>;
 }

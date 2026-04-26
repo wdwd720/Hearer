@@ -131,6 +131,93 @@ The frontend probes the Memory API on boot. If the server is up, you'll see
 **Memory: API connected** in the header. If not, **Memory: local fallback**
 (localStorage). Either path works end-to-end.
 
+## LLM-backed memory and reasoning (optional)
+
+The whole app runs without an LLM. The rule-based extractor and
+deterministic world-state engine are the default and the safety net.
+
+To enable a real LLM brain (memory extraction + ambiguous cue reasoning),
+configure an OpenAI-compatible provider **server-side**. The API key never
+leaves the server; the frontend never sees it.
+
+```bash
+cp .env.example .env
+# edit .env:
+OPENAI_API_KEY=sk-...
+HEARER_LLM_ENABLED=true
+OPENAI_MODEL=gpt-4.1-mini
+# optional:
+# OPENAI_BASE_URL=https://api.openai.com/v1
+# OPENAI_REASONING_MODEL=gpt-4.1-mini
+# HEARER_LLM_TIMEOUT_MS=12000
+# HEARER_LLM_MAX_INPUT_CHARS=4000
+# HEARER_STORE_RAW_TRANSCRIPTS=false
+```
+
+Then start the server and frontend:
+
+```bash
+npm run server   # http://localhost:8788
+npm run dev      # http://localhost:5173
+```
+
+The header chip will read **LLM: connected · gpt-4.1-mini** (or
+**LLM: disabled fallback** / **LLM: key missing** otherwise). The
+`Server brain` toggle in the controls row appears once Memory API is
+connected; turning it on routes stable detections through `/api/decide`
+and uses the LLM cue when the safety guard accepts it.
+
+### What the LLM does (and does not)
+
+- **Memory extraction (`POST /api/memory/extract`)** — the LLM converts a
+  natural sentence like *"Usually after dinner I cook, so if you hear
+  beeping remind me to check the stove."* into a structured `routine`
+  with trigger description, action label, action type, and priority.
+- **Cue reasoning (`POST /api/decide`)** — when a stable detection
+  cleared the cooldown and the world-state engine wants more nuance, the
+  LLM proposes the HUD cue. The safety guard rejects anything that
+  violates the rules below; the deterministic engine is always available
+  as a fallback.
+
+The LLM is **never** called on every audio frame. There's a per-label
+cooldown, a confidence threshold, and the fallback path is exercised on
+any error (timeout, schema mismatch, unsafe text).
+
+### Safety rules enforced server-side (`safetyGuard.ts`)
+
+The HUD payload is dropped if any of these is true:
+
+- text contains `stove is on`, `emergency`, `danger`, `you forgot`,
+  diagnoses, or location-bias terms,
+- mentions a direction (`left/right/front/behind`) when the detection
+  has no direction,
+- exceeds two lines or 80 characters,
+- echoes a transcript back to the user.
+
+### Privacy
+
+- The browser never holds the OpenAI key.
+- Audio is never sent to the LLM. Only short text transcripts (when the
+  user explicitly types) and structured detection labels are.
+- Raw typed text is sanitised (phones / emails / card numbers redacted)
+  unless `HEARER_STORE_RAW_TRANSCRIPTS=true`.
+- The LLM endpoints have a 12 s timeout and a max input length of 4000
+  chars by default, both configurable.
+
+### Test flow
+
+1. Set `HEARER_LLM_ENABLED=true` and put a key in `.env`.
+2. `npm run server` and `npm run dev`.
+3. `curl -s http://localhost:8788/api/llm/status` → should show
+   `provider: "openai_compatible"`.
+4. In **Teach Hearer**, click the example *"Usually after dinner I cook,
+   so if you hear beeping remind me to check the stove."* and press
+   **Save**. The note under the box reads
+   *"Saved 1 item via LLM extractor."*.
+5. In **Audio fallback (dev)** click **Beep ×5**. With **Server brain**
+   on, the HUD shows `Kitchen timer beeping. / Check stove.`
+   (URGENT · PHYSICAL).
+
 ## How to test
 
 ### 1. Simulator / dev mode (no Even Hub bridge)
