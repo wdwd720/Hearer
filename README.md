@@ -210,11 +210,44 @@ The HUD payload is dropped if any of these is true:
 2. `npm run server` and `npm run dev`.
 3. `curl -s http://localhost:8788/api/llm/status` → should show
    `provider: "openai_compatible"`.
-4. In **Teach Hearer**, click the example *"Usually after dinner I cook,
+4. Smoke the real LLM extractor:
+
+   ```bash
+   curl -s -X POST http://localhost:8788/api/memory/extract \
+     -H 'content-type: application/json' \
+     -d '{"text":"Usually after dinner I cook, so if you hear beeping remind me to check the stove."}'
+   ```
+
+   Expected response (top-level):
+
+   ```json
+   {
+     "mode": "llm",
+     "fallbackUsed": false,
+     "persisted": { "routines": [ { "name": "Cooking timer safety cue", "actionLabel": "check stove", ... } ] },
+     ...
+   }
+   ```
+
+   If you instead see `"mode": "rule_based"` with `fallbackUsed: true`,
+   check the server log for a line like `[hearer-llm] provider HTTP 400 on
+   schema='hearer_memory_extraction': …`. The compact provider message
+   tells you exactly what the upstream API rejected.
+5. Smoke `/api/decide`:
+
+   ```bash
+   curl -s -X POST http://localhost:8788/api/decide \
+     -H 'content-type: application/json' \
+     -d '{"detection":{"label":"timer_beep","confidence":0.9,"source":"simulator"},
+          "contextOverride":{"location":"kitchen","activity":"cooking"}}'
+   ```
+
+   Expected: `mode: "llm"`, `cue.text: "Kitchen timer beeping.\nCheck stove."`.
+6. In **Teach Hearer**, click the example *"Usually after dinner I cook,
    so if you hear beeping remind me to check the stove."* and press
    **Save**. The note under the box reads
    *"Saved 1 item via LLM extractor."*.
-5. In **Audio fallback (dev)** click **Beep ×5**. With **Server brain**
+7. In **Audio fallback (dev)** click **Beep ×5**. With **Server brain**
    on, the HUD shows `Kitchen timer beeping. / Check stove.`
    (URGENT · PHYSICAL).
 

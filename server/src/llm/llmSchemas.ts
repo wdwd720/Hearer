@@ -1,8 +1,14 @@
 // JSON Schemas the LLM is asked to fill, plus tiny hand-rolled validators.
 //
-// Hand-rolled rather than zod because the schema surface is small and the
-// dependency surface stays low — important for keeping the server cold-start
-// fast and the dependency tree honest.
+// IMPORTANT: OpenAI strict structured outputs require:
+//   - every object has type=object, properties, required, additionalProperties:false
+//   - "required" lists EVERY key in "properties" (optional fields stay required
+//     but allow null via type:["string","null"] or similar union)
+//   - this applies recursively to nested objects, including array item schemas
+//
+// We use a tiny helper, `strictObject`, so it's hard to forget any of those.
+// `assertStrictOpenAiSchema` walks a schema and throws if any of those
+// invariants is violated; tests use it to lock the contract in place.
 
 import type {
   CueReasoningResult,
@@ -10,87 +16,31 @@ import type {
   MemoryExtractionResult,
 } from "./llmTypes";
 
-export const MEMORY_EXTRACTION_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["items", "confidence", "reason"],
-  properties: {
-    items: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["kind", "label", "actionType", "confidence", "save"],
-        properties: {
-          kind: {
-            type: "string",
-            enum: [
-              "routine",
-              "commitment",
-              "important_item",
-              "known_person",
-              "location_rule",
-              "preference",
-              "ignore",
-            ],
-          },
-          label: { type: "string" },
-          triggerDescription: { type: ["string", "null"] },
-          actionType: {
-            type: "string",
-            enum: ["physical", "digital", "awareness", "none"],
-          },
-          actionLabel: { type: ["string", "null"] },
-          person: { type: ["string", "null"] },
-          deadlineText: { type: ["string", "null"] },
-          locationLabel: { type: ["string", "null"] },
-          priority: {
-            type: ["string", "null"],
-            enum: ["low", "medium", "high", "urgent", null],
-          },
-          confidence: { type: "number" },
-          save: { type: "boolean" },
-          privacyNote: { type: ["string", "null"] },
-        },
-      },
-    },
-    confidence: { type: "number" },
-    reason: { type: "string" },
-  },
-} as const;
+type JsonSchema = Record<string, unknown>;
 
-export const CUE_REASONING_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: [
-    "shouldInterrupt",
-    "cueText",
-    "priority",
-    "actionType",
-    "confidence",
-    "reason",
-    "memoryUsed",
-    "safetyLimits",
-  ],
-  properties: {
-    shouldInterrupt: { type: "boolean" },
-    cueText: { type: "string" },
-    priority: {
-      type: "string",
-      enum: ["low", "medium", "high", "urgent"],
-    },
-    actionType: {
-      type: "string",
-      enum: ["physical", "digital", "awareness"],
-    },
-    confidence: { type: "number" },
-    reason: { type: "string" },
-    memoryUsed: { type: "array", items: { type: "string" } },
-    safetyLimits: { type: "array", items: { type: "string" } },
-  },
-} as const;
+/**
+ * Build an OpenAI-strict-compatible object schema. Every key in
+ * `properties` is automatically added to `required`. Pass an explicit
+ * `required` only when you intentionally want a subset (rare; OpenAI
+ * strict mode disallows that — keep it, but it lets us write narrow
+ * sub-schemas for tests).
+ */
+function strictObject(
+  properties: Record<string, JsonSchema>,
+  options: { description?: string } = {}
+): JsonSchema {
+  const required = Object.keys(properties);
+  const schema: JsonSchema = {
+    type: "object",
+    additionalProperties: false,
+    required,
+    properties,
+  };
+  if (options.description) schema.description = options.description;
+  return schema;
+}
 
-const VALID_KINDS = new Set([
+const KIND_VALUES = [
   "routine",
   "commitment",
   "important_item",
@@ -98,9 +48,117 @@ const VALID_KINDS = new Set([
   "location_rule",
   "preference",
   "ignore",
-]);
-const VALID_ACTION = new Set(["physical", "digital", "awareness", "none"]);
-const VALID_PRIORITY = new Set(["low", "medium", "high", "urgent"]);
+] as const;
+const ACTION_VALUES = ["physical", "digital", "awareness", "none"] as const;
+const PRIORITY_VALUES = ["low", "medium", "high", "urgent"] as const;
+
+// Nested item schema. Every property is in `required`; optional fields use
+// nullable union types so the model can still return null when unknown.
+const MEMORY_ITEM_SCHEMA: JsonSchema = strictObject({
+  kind: { type: "string", enum: [...KIND_VALUES] },
+  label: { type: "string" },
+  triggerDescription: { type: ["string", "null"] },
+  actionType: { type: "string", enum: [...ACTION_VALUES] },
+  actionLabel: { type: ["string", "null"] },
+  person: { type: ["string", "null"] },
+  deadlineText: { type: ["string", "null"] },
+  locationLabel: { type: ["string", "null"] },
+  // OpenAI strict mode requires nullable enums to include `null` in `enum`
+  // and the union type `["string","null"]` on `type`.
+  priority: {
+    type: ["string", "null"],
+    enum: [...PRIORITY_VALUES, null],
+  },
+  confidence: { type: "number" },
+  save: { type: "boolean" },
+  privacyNote: { type: ["string", "null"] },
+});
+
+export const MEMORY_EXTRACTION_SCHEMA: JsonSchema = strictObject({
+  items: {
+    type: "array",
+    items: MEMORY_ITEM_SCHEMA,
+  },
+  confidence: { type: "number" },
+  reason: { type: "string" },
+});
+
+export const CUE_REASONING_SCHEMA: JsonSchema = strictObject({
+  shouldInterrupt: { type: "boolean" },
+  cueText: { type: "string" },
+  priority: { type: "string", enum: [...PRIORITY_VALUES] },
+  actionType: {
+    type: "string",
+    enum: ["physical", "digital", "awareness"],
+  },
+  confidence: { type: "number" },
+  reason: { type: "string" },
+  memoryUsed: { type: "array", items: { type: "string" } },
+  safetyLimits: { type: "array", items: { type: "string" } },
+});
+
+/**
+ * Walk a JSON schema and assert it complies with OpenAI strict structured
+ * outputs. Throws on the first violation with a path-aware message.
+ */
+export function assertStrictOpenAiSchema(
+  schema: unknown,
+  path: string[] = []
+): void {
+  const here = path.join(".") || "(root)";
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) {
+    throw new Error(`${here}: not an object schema`);
+  }
+  const s = schema as JsonSchema;
+  const type = s.type;
+  if (type === "object") {
+    if (!s.properties || typeof s.properties !== "object") {
+      throw new Error(`${here}: object missing 'properties'`);
+    }
+    if (s.additionalProperties !== false) {
+      throw new Error(`${here}: object missing 'additionalProperties: false'`);
+    }
+    if (!Array.isArray(s.required)) {
+      throw new Error(`${here}: object missing 'required' array`);
+    }
+    const propKeys = Object.keys(s.properties as Record<string, unknown>);
+    const required = s.required as string[];
+    for (const key of propKeys) {
+      if (!required.includes(key)) {
+        throw new Error(
+          `${here}: 'required' must include every property key — missing '${key}'`
+        );
+      }
+    }
+    for (const extra of required) {
+      if (!propKeys.includes(extra)) {
+        throw new Error(
+          `${here}: 'required' references unknown property '${extra}'`
+        );
+      }
+    }
+    for (const [k, v] of Object.entries(
+      s.properties as Record<string, JsonSchema>
+    )) {
+      assertStrictOpenAiSchema(v, [...path, "properties", k]);
+    }
+    return;
+  }
+  if (type === "array") {
+    const items = s.items;
+    if (!items) {
+      throw new Error(`${here}: array missing 'items' schema`);
+    }
+    assertStrictOpenAiSchema(items, [...path, "items"]);
+    return;
+  }
+  // Primitive types, including unions like ["string","null"]. Nothing else
+  // to recurse into.
+}
+
+const VALID_KINDS = new Set<string>(KIND_VALUES);
+const VALID_ACTION = new Set<string>(ACTION_VALUES);
+const VALID_PRIORITY = new Set<string>(PRIORITY_VALUES);
 
 function isStringOrNull(v: unknown): v is string | null {
   return v === null || typeof v === "string";
@@ -167,7 +225,9 @@ export function validateMemoryExtraction(
           ? (i.triggerDescription as string | null)
           : null,
         actionType: actionType as ExtractedLlmItem["actionType"],
-        actionLabel: isStringOrNull(i.actionLabel) ? (i.actionLabel as string | null) : null,
+        actionLabel: isStringOrNull(i.actionLabel)
+          ? (i.actionLabel as string | null)
+          : null,
         person: isStringOrNull(i.person) ? (i.person as string | null) : null,
         deadlineText: isStringOrNull(i.deadlineText)
           ? (i.deadlineText as string | null)

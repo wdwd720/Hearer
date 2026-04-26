@@ -76,7 +76,8 @@ export class OpenAiCompatibleProvider implements LlmProvider {
     const json = await this.chatJson(
       cfg.model,
       messages,
-      MEMORY_EXTRACTION_SCHEMA
+      MEMORY_EXTRACTION_SCHEMA,
+      "hearer_memory_extraction"
     );
     const validated = validateMemoryExtraction(json);
     if (!validated.ok || !validated.value) {
@@ -100,7 +101,8 @@ export class OpenAiCompatibleProvider implements LlmProvider {
     const json = await this.chatJson(
       cfg.reasoningModel,
       messages,
-      CUE_REASONING_SCHEMA
+      CUE_REASONING_SCHEMA,
+      "hearer_cue_reasoning"
     );
     const validated = validateCueReasoning(json);
     if (!validated.ok || !validated.value) {
@@ -117,7 +119,8 @@ export class OpenAiCompatibleProvider implements LlmProvider {
   private async chatJson(
     model: string,
     messages: ChatMessage[],
-    schema: unknown
+    schema: unknown,
+    schemaName: string
   ): Promise<unknown> {
     const cfg = getLlmConfig();
     if (!cfg.apiKey) {
@@ -127,11 +130,14 @@ export class OpenAiCompatibleProvider implements LlmProvider {
     const body = {
       model,
       messages,
-      // Most OpenAI-compatible servers honour at least one of these:
+      // OpenAI Chat Completions strict structured output. The schema must
+      // already comply with strict-mode rules (every property in `required`,
+      // no `additionalProperties`, etc.) — we lock that in via
+      // assertStrictOpenAiSchema in tests.
       response_format: {
         type: "json_schema",
         json_schema: {
-          name: "hearer_response",
+          name: schemaName,
           schema,
           strict: true,
         },
@@ -153,9 +159,17 @@ export class OpenAiCompatibleProvider implements LlmProvider {
       });
       if (!res.ok) {
         const detail = await safeText(res);
+        const compact = compactErrorDetail(detail);
+        // Surface the schema name + provider message, but never the API key
+        // or the user's transcript. The schema/userPrompt itself is not
+        // logged either — it can include short text snippets the user typed.
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[hearer-llm] provider HTTP ${res.status} on schema='${schemaName}': ${compact}`
+        );
         throw new LlmError(
           "provider",
-          `LLM provider HTTP ${res.status}: ${shortDetail(detail)}`,
+          `LLM provider HTTP ${res.status} on '${schemaName}': ${compact}`,
           res.status
         );
       }
@@ -200,6 +214,30 @@ async function safeText(res: Response): Promise<string> {
 function shortDetail(s: string): string {
   if (!s) return "(no body)";
   return s.length > 200 ? s.slice(0, 200) + "…" : s;
+}
+
+/**
+ * Pull the OpenAI error.message out of a JSON body when present so the log
+ * line shows what actually went wrong (e.g. schema 400). Falls back to a
+ * truncated raw body if the body isn't JSON.
+ */
+function compactErrorDetail(s: string): string {
+  if (!s) return "(no body)";
+  try {
+    const parsed = JSON.parse(s) as {
+      error?: { message?: string; code?: string; param?: string };
+    };
+    const e = parsed.error;
+    if (e && (e.message || e.code)) {
+      const head = e.code ? `${e.code}` : "";
+      const tail = e.message ?? "";
+      const combined = head ? `${head}: ${tail}` : tail;
+      return shortDetail(combined);
+    }
+  } catch {
+    // not JSON — fall through to raw truncation
+  }
+  return shortDetail(s);
 }
 
 function trim(s: string, n: number): string {
