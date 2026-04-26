@@ -1,0 +1,77 @@
+.hr-scenario-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hr-scenario-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.hr-scenario-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hr-scenario-cat {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--hr-text-muted);
+  padding: 0 4px;
+}
+
+.hr-scenario-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hr-scenario-btn {
+  appearance: none;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--hr-border);
+  color: var(--hr-text);
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+  font-family: inherit;
+}
+
+.hr-scenario-btn:hover {
+  border-color: rgba(110, 230, 200, 0.35);
+  background: rgba(110, 230, 200, 0.04);
+}
+
+.hr-scenario-btn:active {
+  transform: translateY(1px);
+}
+
+.hr-scenario-btn-active {
+  border-color: rgba(110, 230, 200, 0.55);
+  background: rgba(110, 230, 200, 0.08);
+  box-shadow: 0 0 0 1px rgba(110, 230, 200, 0.25) inset;
+}
+
+.hr-scenario-btn-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.hr-scenario-btn-meta {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--hr-text-muted);
+}

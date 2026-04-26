@@ -1,0 +1,105 @@
+.hr-mem-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.hr-mem-block:last-child {
+  margin-bottom: 0;
+}
+
+.hr-mem-label {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--hr-text-muted);
+}
+
+.hr-mem-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hr-tag {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--hr-border);
+  color: var(--hr-text);
+  letter-spacing: 0.02em;
+}
+
+.hr-mem-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hr-mem-task {
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--hr-text);
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.hr-mem-task-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--hr-accent);
+}
+
+.hr-mem-task-drafted .hr-mem-task-dot {
+  background: var(--hr-accent-blue);
+}
+
+.hr-mem-task-done .hr-mem-task-dot {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.hr-mem-task-type {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hr-text-muted);
+}
+
+.hr-mem-routines {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hr-mem-routine {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--hr-border);
+}
+
+.hr-mem-routine-name {
+  font-weight: 600;
+  color: var(--hr-text);
+}
+
+.hr-mem-routine-trigger {
+  font-size: 11px;
+  color: var(--hr-text-muted);
+}
