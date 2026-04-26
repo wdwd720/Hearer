@@ -1,13 +1,16 @@
 import type { Cue, DigitalAction } from "../engine/types";
+import type { CueFeedback } from "../../shared/types";
 import { titleCase } from "../utils/format";
 import "./ActionPanel.css";
 
 interface ActionPanelProps {
   cue: Cue | null;
   actions: DigitalAction[];
+  onFeedback?: (feedback: CueFeedback) => void;
+  feedbackGiven?: CueFeedback | null;
 }
 
-export function ActionPanel({ cue, actions }: ActionPanelProps) {
+export function ActionPanel({ cue, actions, onFeedback, feedbackGiven }: ActionPanelProps) {
   return (
     <section className="hr-panel" aria-label="Action router">
       <header className="hr-panel-header">
@@ -34,6 +37,29 @@ export function ActionPanel({ cue, actions }: ActionPanelProps) {
           desc="Tell the user something happened"
         />
       </div>
+
+      {cue && onFeedback && (
+        <div className="hr-action-feedback">
+          <span className="hr-action-feedback-label">Was this cue useful?</span>
+          <div className="hr-action-feedback-row">
+            {(["helpful", "too_much", "wrong", "missed"] as CueFeedback[]).map(
+              (f) => (
+                <button
+                  key={f}
+                  type="button"
+                  className={`hr-btn hr-btn-mini ${
+                    feedbackGiven === f ? "hr-btn-primary" : ""
+                  }`}
+                  onClick={() => onFeedback(f)}
+                  disabled={feedbackGiven === f}
+                >
+                  {f.replace("_", " ")}
+                </button>
+              )
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="hr-action-list">
         {actions.length === 0 && (

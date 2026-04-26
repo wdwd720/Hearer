@@ -1,0 +1,57 @@
+.hr-dmc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.hr-dmc-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--hr-border);
+  background: rgba(255, 255, 255, 0.02);
+  align-items: center;
+}
+
+.hr-dmc-name {
+  font-size: 12px;
+  color: var(--hr-text);
+}
+
+.hr-dmc-state {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--hr-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--hr-text-muted);
+}
+
+.hr-dmc-state-on {
+  color: var(--hr-accent);
+  border-color: rgba(110, 230, 200, 0.4);
+  background: rgba(110, 230, 200, 0.08);
+}
+
+.hr-dmc-state-off {
+  color: var(--hr-text-muted);
+}
+
+.hr-dmc-state-soft {
+  color: var(--hr-warn);
+  border-color: rgba(255, 200, 120, 0.35);
+  background: rgba(255, 200, 120, 0.06);
+}
+
+.hr-dmc-note {
+  font-size: 11px;
+  color: var(--hr-text-muted);
+  line-height: 1.4;
+}

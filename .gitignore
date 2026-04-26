@@ -9,3 +9,20 @@ dist-ssr
 *.log
 .env
 .env.*
+
+# Hearer Memory API runtime data
+server/data/
+server/data/*
+*.sqlite
+*.sqlite-journal
+
+# ML artifacts
+ml/datasets/*
+!ml/datasets/.gitkeep
+!ml/datasets/README.md
+ml/manifests/*
+!ml/manifests/.gitkeep
+ml/artifacts/
+ml/.venv/
+__pycache__/
+*.pyc

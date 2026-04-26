@@ -1,0 +1,222 @@
+.hr-aap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hr-aap-status {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--hr-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--hr-text-muted);
+}
+
+.hr-aap-status-on {
+  color: var(--hr-accent);
+  border-color: rgba(110, 230, 200, 0.4);
+  background: rgba(110, 230, 200, 0.08);
+}
+
+.hr-aap-status-busy {
+  color: var(--hr-accent-blue);
+  border-color: rgba(127, 198, 255, 0.4);
+  background: rgba(127, 198, 255, 0.06);
+}
+
+.hr-aap-status-err {
+  color: var(--hr-danger);
+  border-color: rgba(255, 110, 90, 0.45);
+  background: rgba(255, 110, 90, 0.06);
+}
+
+.hr-aap-status-idle {
+  opacity: 0.7;
+}
+
+.hr-aap-meta {
+  font-size: 11px;
+  color: var(--hr-text-muted);
+  line-height: 1.4;
+}
+
+.hr-aap-meter-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.hr-aap-rms {
+  font-family: "JetBrains Mono", "SF Mono", "Menlo", monospace;
+  font-size: 11px;
+  color: var(--hr-text-muted);
+}
+
+.hr-aap-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hr-btn-mini {
+  font-size: 11px;
+  padding: 5px 9px;
+  letter-spacing: 0.04em;
+}
+
+.hr-aap-fixtures {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--hr-border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.hr-aap-fixtures-label,
+.hr-aap-context-label,
+.hr-aap-last-label {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--hr-text-muted);
+}
+
+.hr-aap-fixtures-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.hr-aap-context {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--hr-border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.hr-aap-context-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.hr-aap-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--hr-text-muted);
+}
+
+.hr-aap-field select {
+  appearance: none;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--hr-border);
+  border-radius: 6px;
+  color: var(--hr-text);
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.hr-aap-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.hr-aap-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--hr-text);
+  cursor: pointer;
+}
+
+.hr-aap-toggle input {
+  accent-color: var(--hr-accent);
+}
+
+.hr-aap-route {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hr-aap-last {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--hr-border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.hr-aap-last-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hr-aap-last-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hr-text);
+  text-transform: capitalize;
+}
+
+.hr-aap-last-conf {
+  font-family: "JetBrains Mono", "SF Mono", "Menlo", monospace;
+  font-size: 12px;
+  color: var(--hr-accent);
+}
+
+.hr-aap-last-routed {
+  margin-left: auto;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--hr-border);
+  color: var(--hr-text-muted);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.hr-aap-last-routed.is-routed {
+  color: var(--hr-accent);
+  border-color: rgba(110, 230, 200, 0.4);
+  background: rgba(110, 230, 200, 0.08);
+}
+
+.hr-aap-last-explain {
+  font-size: 11px;
+  color: var(--hr-text-muted);
+  font-family: "JetBrains Mono", "SF Mono", "Menlo", monospace;
+}
+
+.hr-aap-last-empty {
+  font-size: 11px;
+  color: var(--hr-text-muted);
+}
+
+.hr-aap-error {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 110, 90, 0.45);
+  background: rgba(255, 110, 90, 0.06);
+  color: var(--hr-danger);
+  font-size: 12px;
+}
