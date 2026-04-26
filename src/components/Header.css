@@ -1,0 +1,64 @@
+.hr-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--hr-border);
+  background: linear-gradient(180deg, rgba(15, 19, 24, 0.95), rgba(10, 13, 16, 0.95));
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  backdrop-filter: blur(12px);
+}
+
+.hr-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hr-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.hr-brand-name {
+  font-size: 22px;
+  color: var(--hr-text);
+  background: linear-gradient(180deg, #e5fbff, #b8e3eb);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hr-brand-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--hr-accent);
+  box-shadow:
+    0 0 12px rgba(80, 220, 200, 0.6),
+    0 0 2px rgba(80, 220, 200, 0.9);
+  animation: hr-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes hr-pulse {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+.hr-tagline {
+  font-size: 13px;
+  color: var(--hr-text-muted);
+  letter-spacing: 0.02em;
+}
+
+.hr-header-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}

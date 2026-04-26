@@ -1,0 +1,227 @@
+:root {
+  --hr-bg: #0a0d10;
+  --hr-bg-elev-1: #11151a;
+  --hr-bg-elev-2: #161b21;
+  --hr-border: rgba(255, 255, 255, 0.06);
+  --hr-border-strong: rgba(255, 255, 255, 0.12);
+  --hr-text: #e8eef3;
+  --hr-text-muted: #8a98a3;
+  --hr-accent: #6ee6c8;
+  --hr-accent-blue: #7fc6ff;
+  --hr-warn: #ffc878;
+  --hr-danger: #ff6f5a;
+
+  color-scheme: dark;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", "Helvetica Neue",
+    Arial, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background: var(--hr-bg);
+  color: var(--hr-text);
+}
+
+body {
+  background:
+    radial-gradient(1100px 600px at 20% -20%, rgba(110, 230, 200, 0.06), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgba(127, 198, 255, 0.05), transparent 60%),
+    var(--hr-bg);
+}
+
+button {
+  font-family: inherit;
+}
+
+a {
+  color: var(--hr-accent-blue);
+}
+
+.hr-panel {
+  background: var(--hr-bg-elev-1);
+  border: 1px solid var(--hr-border);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset;
+}
+
+.hr-panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hr-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hr-text);
+  margin: 0;
+}
+
+.hr-panel-sub {
+  font-size: 11px;
+  color: var(--hr-text-muted);
+  letter-spacing: 0.04em;
+}
+
+.hr-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--hr-border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--hr-text-muted);
+}
+
+.hr-chip-soft {
+  color: var(--hr-text);
+  border-color: var(--hr-border-strong);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.hr-chip-warn {
+  color: var(--hr-warn);
+  border-color: rgba(255, 200, 120, 0.35);
+  background: rgba(255, 200, 120, 0.06);
+}
+
+.hr-chip-accent {
+  color: var(--hr-accent);
+  border-color: rgba(110, 230, 200, 0.35);
+  background: rgba(110, 230, 200, 0.06);
+}
+
+.hr-app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.hr-main {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) 360px;
+  gap: 18px;
+  padding: 22px;
+  flex: 1;
+}
+
+.hr-col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.hr-center {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.hr-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+}
+
+.hr-btn {
+  appearance: none;
+  border: 1px solid var(--hr-border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--hr-text);
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.hr-btn:hover {
+  border-color: rgba(110, 230, 200, 0.35);
+  background: rgba(110, 230, 200, 0.05);
+}
+
+.hr-btn-primary {
+  border-color: rgba(110, 230, 200, 0.45);
+  background: rgba(110, 230, 200, 0.08);
+  color: #d8fff0;
+}
+
+.hr-explainer {
+  font-size: 12px;
+  color: var(--hr-text-muted);
+  line-height: 1.5;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--hr-border);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.hr-footer {
+  padding: 14px 22px 22px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--hr-border);
+  font-size: 11px;
+  color: var(--hr-text-muted);
+}
+
+.hr-privacy {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hr-privacy-tag {
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--hr-border);
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 1180px) {
+  .hr-main {
+    grid-template-columns: 240px minmax(0, 1fr) 320px;
+  }
+}
+
+@media (max-width: 980px) {
+  .hr-main {
+    grid-template-columns: 1fr;
+  }
+}
