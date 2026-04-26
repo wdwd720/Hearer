@@ -25,7 +25,9 @@ export type AudioEvent =
   | "horn"
   | "name_called"
   | "laughter"
-  | "applause";
+  | "applause"
+  | "knock"
+  | "speech_nearby";
 
 export type SpeechIntent =
   | "question"
